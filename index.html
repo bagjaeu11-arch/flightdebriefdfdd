@@ -1,0 +1,1212 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>비행 프로파일 맵 및 공항별 종합 디브리프</title>
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --card-bg: #111827;
+            --border-color: #1f2937;
+            --accent-blue: #3b82f6;
+            --accent-cyan: #06b6d4;
+            --accent-emerald: #10b981;
+            --accent-rose: #f43f5e;
+            --accent-purple: #8b5cf6;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --hover-bg: #1e293b;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-main); line-height: 1.5; padding: 20px; }
+        .container { max-width: 1600px; margin: 0 auto; }
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 1px solid var(--border-color); padding-bottom: 16px; flex-wrap: wrap; gap: 15px; }
+        h1 { font-size: 1.5rem; font-weight: 700; color: var(--accent-cyan); display: flex; align-items: center; gap: 10px; }
+        .header-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        .nav-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+        .tab-btn { background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-muted); padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.2s; font-size: 0.9rem; }
+        .tab-btn.active { background: var(--accent-blue); color: white; border-color: var(--accent-blue); }
+        
+        .view-section { display: none; }
+        .view-section.active { display: block; }
+
+        /* Flight Selector Bar */
+        .flight-selector-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px 20px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
+        .flight-selector-left { display: flex; align-items: center; gap: 15px; flex-wrap: wrap; }
+        .flight-select { background: var(--bg-color); border: 1px solid var(--border-color); color: var(--text-main); padding: 8px 12px; border-radius: 8px; font-size: 0.9rem; min-width: 250px; }
+        
+        /* Flight Meta Info Card */
+        .flight-meta-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; margin-bottom: 24px; }
+        .flight-meta-title { font-size: 0.95rem; font-weight: 700; color: var(--accent-cyan); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+        .flight-meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; }
+        .meta-group label { display: block; font-size: 0.75rem; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; }
+        .meta-group input { width: 100%; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 6px; padding: 8px 10px; color: var(--text-main); font-size: 0.85rem; }
+        .meta-group input:focus { outline: none; border-color: var(--accent-cyan); }
+
+        /* Flight Profile Interactive SVG Map View */
+        .profile-map-wrapper { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 16px; padding: 30px; position: relative; min-height: 650px; display: flex; flex-direction: column; align-items: center; overflow: hidden; }
+        .profile-instruction { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 20px; text-align: center; }
+        
+        .svg-canvas-container { position: relative; width: 100%; max-width: 1300px; height: 500px; }
+        .profile-svg { width: 100%; height: 100%; }
+        
+        .phase-node-group { cursor: pointer; transition: transform 0.2s; }
+        .phase-node-group:hover { transform: scale(1.05); }
+        .phase-node-box { fill: #111827; stroke: #06b6d4; stroke-width: 2; rx: 6; ry: 6; transition: all 0.2s; }
+        .phase-node-group:hover .phase-node-box { fill: #1e293b; stroke: #3b82f6; filter: drop-shadow(0 0 8px rgba(6,182,212,0.6)); }
+        .phase-node-text { fill: #f3f4f6; font-size: 13px; font-weight: bold; text-anchor: middle; dominant-baseline: middle; }
+        .phase-status-indicator { font-size: 10px; text-anchor: middle; }
+
+        /* Comprehensive Airport View Styles (DEP & ARR) */
+        .airport-view-wrapper { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 16px; padding: 30px; }
+        .airport-filter-bar { display: flex; gap: 15px; align-items: center; margin-bottom: 25px; flex-wrap: wrap; background: var(--bg-color); padding: 16px; border-radius: 10px; border: 1px solid var(--border-color); }
+        .airport-select { background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-main); padding: 8px 14px; border-radius: 8px; font-size: 0.95rem; min-width: 200px; }
+        
+        .airport-summary-container { display: flex; flex-direction: column; gap: 20px; }
+        .airport-flight-block { background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; margin-bottom: 15px; }
+        .airport-flight-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
+        .airport-flight-title { font-size: 1.05rem; font-weight: 700; color: var(--accent-cyan); display: flex; align-items: center; gap: 10px; }
+        
+        .airport-phases-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 15px; }
+        
+        /* Thumbnail Phase Card Style */
+        .airport-phase-thumb { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; cursor: pointer; transition: all 0.2s; position: relative; }
+        .airport-phase-thumb:hover { border-color: var(--accent-cyan); background: var(--hover-bg); transform: translateY(-2px); }
+        .airport-phase-name { font-size: 0.85rem; font-weight: 700; color: var(--accent-purple); margin-bottom: 6px; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; }
+        .thumb-preview-text { font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .thumb-count-badge { font-size: 0.7rem; background: rgba(59,130,246,0.2); color: var(--accent-cyan); padding: 2px 6px; border-radius: 4px; }
+
+        /* Modal Popup for Phase Review / Thumbnail Details */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); display: none; justify-content: center; align-items: center; z-index: 1000; backdrop-filter: blur(4px); }
+        .modal-overlay.active { display: flex; }
+        .modal-card { background: var(--card-bg); border: 1px solid var(--accent-cyan); border-radius: 16px; width: 90%; max-width: 900px; padding: 30px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5); position: relative; max-height: 85vh; display: flex; flex-direction: column; }
+        .modal-close { position: absolute; top: 20px; right: 20px; background: none; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer; }
+        .modal-close:hover { color: var(--text-main); }
+        .modal-title { font-size: 1.25rem; font-weight: 700; color: var(--accent-cyan); margin-bottom: 15px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; }
+        
+        .flight-record-card { background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 10px; padding: 16px; margin-bottom: 12px; }
+        .flight-record-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px dashed var(--border-color); padding-bottom: 8px; font-size: 0.85rem; color: var(--accent-cyan); flex-wrap: wrap; gap: 5px; cursor: pointer; }
+        .flight-record-header:hover { color: var(--accent-blue); }
+        
+        .modal-body { display: flex; flex-direction: column; gap: 14px; overflow-y: auto; padding-right: 5px; flex-grow: 1; }
+        .modal-field-group { background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-top: 8px; }
+        .modal-field-label { font-size: 0.75rem; text-transform: uppercase; color: var(--accent-blue); font-weight: 700; margin-bottom: 4px; }
+        .modal-field-val { font-size: 0.9rem; color: var(--text-main); white-space: pre-wrap; word-break: break-all; }
+        .modal-empty { color: #4b5563; font-style: italic; font-size: 0.85rem; text-align: center; padding: 20px; }
+
+        /* Debrief Form View */
+        .debrief-layout { display: grid; grid-template-columns: 280px 1fr; gap: 20px; }
+        .phase-list { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 10px; height: fit-content; }
+        .phase-item { padding: 12px 16px; border-radius: 8px; cursor: pointer; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; color: var(--text-muted); transition: background 0.2s; }
+        .phase-item:hover { background: var(--hover-bg); color: var(--text-main); }
+        .phase-item.active { background: var(--hover-bg); color: var(--accent-cyan); border-left: 4px solid var(--accent-cyan); font-weight: 600; }
+        .phase-badge { font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; background: var(--border-color); color: var(--text-muted); }
+        .phase-item.has-data .phase-badge { background: rgba(16, 185, 129, 0.2); color: var(--accent-emerald); }
+
+        .form-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 24px; }
+        .form-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 15px; }
+        .form-title { font-size: 1.25rem; font-weight: 600; color: var(--text-main); }
+        
+        /* Multiple Entry Cards inside Form */
+        .entries-container { display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px; }
+        .entry-card { background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 10px; padding: 16px; position: relative; }
+        .entry-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 0.85rem; font-weight: 700; color: var(--accent-cyan); }
+        
+        .form-group { margin-bottom: 12px; }
+        label { display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
+        input[type="text"], input[type="date"], select, textarea { width: 100%; background: #0b0f19; border: 1px solid var(--border-color); border-radius: 8px; padding: 10px 14px; color: var(--text-main); font-size: 0.9rem; }
+        textarea { resize: vertical; min-height: 80px; }
+        input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent-cyan); }
+        
+        .btn-group { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; }
+        .btn { padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none; transition: opacity 0.2s; }
+        .btn-primary { background: var(--accent-blue); color: white; }
+        .btn-success { background: var(--accent-emerald); color: #000; }
+        .btn-danger { background: var(--accent-rose); color: white; }
+        .btn-secondary { background: var(--border-color); color: var(--text-main); }
+        .btn:hover { opacity: 0.9; }
+
+        .action-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+        .save-status { font-size: 0.85rem; color: var(--accent-emerald); display: flex; align-items: center; gap: 5px; }
+
+        /* Custom Calendar Picker Popup Styles */
+        .calendar-input-wrapper { position: relative; display: flex; align-items: center; }
+        .calendar-icon-btn { position: absolute; right: 10px; background: none; border: none; cursor: pointer; font-size: 1.1rem; color: var(--accent-cyan); }
+        
+        .calendar-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: none; justify-content: center; align-items: center; z-index: 2000; backdrop-filter: blur(2px); }
+        .calendar-modal-overlay.active { display: flex; }
+        .calendar-card { background: var(--card-bg); border: 1px solid var(--accent-cyan); border-radius: 16px; width: 340px; padding: 20px; box-shadow: 0 15px 25px rgba(0,0,0,0.5); }
+        .cal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; font-weight: 700; color: var(--accent-cyan); font-size: 1rem; }
+        .cal-header button { background: var(--bg-color); border: 1px solid var(--border-color); color: var(--text-main); padding: 4px 10px; border-radius: 6px; cursor: pointer; }
+        .cal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-size: 0.75rem; color: var(--text-muted); font-weight: 600; margin-bottom: 8px; }
+        .cal-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+        .cal-day { aspect-ratio: 1; display: flex; justify-content: center; align-items: center; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.85rem; cursor: pointer; color: var(--text-main); transition: all 0.1s; }
+        .cal-day:hover { background: var(--hover-bg); border-color: var(--accent-blue); }
+        .cal-day.selected { background: var(--accent-blue); color: white; border-color: var(--accent-blue); font-weight: bold; }
+        .cal-day.today { border-color: var(--accent-cyan); }
+        .cal-day.empty { border: none; background: transparent; cursor: default; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>✈️ Flight Profile Debrief & Mission Map</h1>
+        <div class="header-actions">
+            <div class="nav-tabs">
+                <button class="tab-btn active" onclick="switchView('debrief')">단계별 입력 폼</button>
+                <button class="tab-btn" onclick="switchView('profile')">비행 프로파일 맵</button>
+                <button class="tab-btn" onclick="switchView('depView')" style="background:var(--accent-blue); border-color:var(--accent-blue);">🛫 출발공항 종합 후기</button>
+                <button class="tab-btn" onclick="switchView('arrView')" style="background:var(--accent-purple); border-color:var(--accent-purple);">🛬 도착공항 종합 후기</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Flight Selector / Creator Bar -->
+    <div class="flight-selector-card">
+        <div class="flight-selector-left">
+            <label style="font-size: 0.85rem; font-weight: 700; color: var(--accent-cyan);">비행 선택 (Select Flight):</label>
+            <select id="flightSelector" class="flight-select" onchange="switchActiveFlight(this.value)"></select>
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <button class="btn btn-success" onclick="createNewFlight()">➕ 새 비행 후기 시작하기</button>
+            <button class="btn btn-danger" onclick="deleteCurrentFlight()" style="padding: 8px 12px; font-size: 0.85rem;">현재 비행 삭제</button>
+        </div>
+    </div>
+
+    <!-- Flight Meta Info Card -->
+    <div class="flight-meta-card">
+        <div class="flight-meta-title">🛫 현재 비행 기본 정보 및 날짜</div>
+        <div class="flight-meta-grid">
+            <div class="meta-group">
+                <label>작성 날짜 (Date)</label>
+                <div class="calendar-input-wrapper">
+                    <input type="date" id="meta_date" oninput="saveCurrentFlightMeta()">
+                    <button type="button" class="calendar-icon-btn" onclick="openCalendarModal()" title="달력 열기">📅</button>
+                </div>
+            </div>
+            <div class="meta-group">
+                <label>기장 / 파일럿 (Captain)</label>
+                <input type="text" id="meta_pilot" placeholder="예: 박재우 기장" oninput="saveCurrentFlightMeta()">
+            </div>
+            <div class="meta-group">
+                <label>항공기 기번 (Aircraft)</label>
+                <input type="text" id="meta_ac" placeholder="예: HL8350" oninput="saveCurrentFlightMeta()">
+            </div>
+            <div class="meta-group">
+                <label>출발 공항 (DEP)</label>
+                <input type="text" id="meta_dep" placeholder="예: RKSI" oninput="saveCurrentFlightMeta()">
+            </div>
+            <div class="meta-group">
+                <label>도착 공항 (ARR)</label>
+                <input type="text" id="meta_arr" placeholder="예: RKPC" oninput="saveCurrentFlightMeta()">
+            </div>
+            <div class="meta-group">
+                <label>STAR</label>
+                <input type="text" id="meta_star" placeholder="예: DOSAS 1S" oninput="saveCurrentFlightMeta()">
+            </div>
+            <div class="meta-group">
+                <label>접근 방식 (APP)</label>
+                <input type="text" id="meta_app" placeholder="예: ILS Z RWY 14R" oninput="saveCurrentFlightMeta()">
+            </div>
+            <div class="meta-group">
+                <label>활주로 (RWY)</label>
+                <input type="text" id="meta_rwy" placeholder="예: 14R" oninput="saveCurrentFlightMeta()">
+            </div>
+        </div>
+    </div>
+
+    <!-- View 1: Debrief Form -->
+    <div id="debriefView" class="view-section active">
+        <div class="action-bar">
+            <span class="save-status" id="saveStatus">💾 자동 저장됨</span>
+            <button class="btn btn-primary" onclick="exportData()">전체 데이터 백업(JSON)</button>
+            <button class="btn btn-success" onclick="document.getElementById('importFile').click()">📂 백업 파일 불러오기</button>
+            <input type="file" id="importFile" style="display:none" accept=".json" onchange="importData(event)">
+        </div>
+        <div class="debrief-layout">
+            <div class="phase-list" id="phaseList"></div>
+            <div class="form-card">
+                <div class="form-header">
+                    <div class="form-title" id="currentPhaseTitle">Preflight</div>
+                    <span class="phase-badge" id="currentPhaseStatus">작성 대기</span>
+                </div>
+                
+                <!-- Dynamic Multiple Entries Container -->
+                <div id="entriesContainer" class="entries-container"></div>
+
+                <div style="margin-bottom: 20px;">
+                    <button type="button" class="btn btn-primary" style="width: 100%; background: rgba(59, 130, 246, 0.2); border: 1px dashed var(--accent-blue); color: var(--accent-cyan);" onclick="addNewEntry()">➕ 항목 추가하기 (상황 / 내가 한 조작 / 옳은 조작)</button>
+                </div>
+
+                <div class="btn-group">
+                    <button type="button" class="btn btn-secondary" onclick="prevPhase()">이전 페이즈</button>
+                    <button type="button" class="btn btn-success" onclick="saveAndNextPhase()">저장 및 다음 페이즈</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- View 2: Visual Flight Profile Map -->
+    <div id="profileView" class="view-section">
+        <div class="action-bar">
+            <h2 style="font-size: 1.1rem; color: var(--text-main);">비행 프로파일 맵 (클릭하여 역대 모든 비행의 해당 페이즈 후기 확인)</h2>
+            <button class="btn btn-primary" onclick="switchView('debrief')">단계별 입력 폼으로 이동</button>
+        </div>
+        <div class="profile-map-wrapper">
+            <div class="profile-instruction">✈️ 아래 비행 경로(Profile) 상의 각 페이즈 영역을 클릭하면, **지금까지 작성한 모든 비행의 해당 페이즈 후기 기록**을 깔끔하게 요약해서 볼 수 있습니다.</div>
+            
+            <div class="svg-canvas-container">
+                <svg class="profile-svg" viewBox="0 0 1320 460" preserveAspectRatio="xMidYMid meet">
+                    <!-- Background Grid Lines -->
+                    <line x1="50" y1="380" x2="1280" y2="380" stroke="#1f2937" stroke-width="2" />
+                    <line x1="50" y1="280" x2="1280" y2="280" stroke="#1f2937" stroke-dasharray="4" stroke-opacity="0.5" />
+                    <line x1="50" y1="180" x2="1280" y2="180" stroke="#1f2937" stroke-dasharray="4" stroke-opacity="0.5" />
+                    <line x1="50" y1="80" x2="1280" y2="80" stroke="#1f2937" stroke-dasharray="4" stroke-opacity="0.5" />
+
+                    <!-- Flight Profile Path -->
+                    <path d="M 80 380 Q 50 380 50 350 Q 50 320 80 320 L 150 320" fill="none" stroke="#06b6d4" stroke-width="3" />
+                    <path d="M 150 320 L 280 320 L 450 150" fill="none" stroke="#06b6d4" stroke-width="3" />
+                    <path d="M 450 150 L 750 150" fill="none" stroke="#06b6d4" stroke-width="3" />
+                    <path d="M 750 150 L 980 300 L 1120 380" fill="none" stroke="#06b6d4" stroke-width="3" />
+                    <path d="M 1120 380 L 1280 380" fill="none" stroke="#06b6d4" stroke-width="3" />
+
+                    <!-- Phase Clickable Nodes -->
+                    <g class="phase-node-group" onclick="openPhaseModal('non_normal')">
+                        <rect x="20" y="200" width="85" height="35" class="phase-node-box" id="node-rect-non_normal"/>
+                        <text x="62" y="218" class="phase-node-text" style="font-size: 11px;">Non-Normal</text>
+                        <text x="62" y="248" class="phase-status-indicator" id="node-status-non_normal" fill="#9ca3af">기록 확인</text>
+                    </g>
+                    <g class="phase-node-group" onclick="openPhaseModal('preflight')">
+                        <rect x="60" y="270" width="80" height="35" class="phase-node-box" id="node-rect-preflight"/>
+                        <text x="100" y="288" class="phase-node-text">Preflight</text>
+                        <text x="100" y="318" class="phase-status-indicator" id="node-status-preflight" fill="#9ca3af">기록 확인</text>
+                    </g>
+                    <g class="phase-node-group" onclick="openPhaseModal('taxi_out')">
+                        <rect x="150" y="340" width="85" height="35" class="phase-node-box" id="node-rect-taxi_out"/>
+                        <text x="192" y="358" class="phase-node-text">Taxi Out</text>
+                        <text x="192" y="388" class="phase-status-indicator" id="node-status-taxi_out" fill="#9ca3af">기록 확인</text>
+                    </g>
+                    <g class="phase-node-group" onclick="openPhaseModal('takeoff')">
+                        <rect x="250" y="275" width="80" height="35" class="phase-node-box" id="node-rect-takeoff"/>
+                        <text x="290" y="293" class="phase-node-text">Takeoff</text>
+                        <text x="290" y="323" class="phase-status-indicator" id="node-status-takeoff" fill="#9ca3af">기록 확인</text>
+                    </g>
+                    <g class="phase-node-group" onclick="openPhaseModal('climb')">
+                        <rect x="360" y="200" width="80" height="35" class="phase-node-box" id="node-rect-climb"/>
+                        <text x="400" y="218" class="phase-node-text">Climb</text>
+                        <text x="400" y="248" class="phase-status-indicator" id="node-status-climb" fill="#9ca3af">기록 확인</text>
+                    </g>
+                    <g class="phase-node-group" onclick="openPhaseModal('cruise')">
+                        <rect x="570" y="105" width="80" height="35" class="phase-node-box" id="node-rect-cruise"/>
+                        <text x="610" y="123" class="phase-node-text">Cruise</text>
+                        <text x="610" y="153" class="phase-status-indicator" id="node-status-cruise" fill="#9ca3af">기록 확인</text>
+                    </g>
+                    <g class="phase-node-group" onclick="openPhaseModal('descent')">
+                        <rect x="820" y="195" width="80" height="35" class="phase-node-box" id="node-rect-descent"/>
+                        <text x="860" y="213" class="phase-node-text">Descent</text>
+                        <text x="860" y="243" class="phase-status-indicator" id="node-status-descent" fill="#9ca3af">기록 확인</text>
+                    </g>
+                    <g class="phase-node-group" onclick="openPhaseModal('approach')">
+                        <rect x="940" y="245" width="85" height="35" class="phase-node-box" id="node-rect-approach"/>
+                        <text x="982" y="263" class="phase-node-text">Approach</text>
+                        <text x="982" y="293" class="phase-status-indicator" id="node-status-approach" fill="#9ca3af">기록 확인</text>
+                    </g>
+                    <g class="phase-node-group" onclick="openPhaseModal('landing')">
+                        <rect x="1050" y="320" width="80" height="35" class="phase-node-box" id="node-rect-landing"/>
+                        <text x="1090" y="338" class="phase-node-text">Landing</text>
+                        <text x="1090" y="368" class="phase-status-indicator" id="node-status-landing" fill="#9ca3af">기록 확인</text>
+                    </g>
+                    <g class="phase-node-group" onclick="openPhaseModal('taxi_in')">
+                        <rect x="1110" y="400" width="75" height="30" class="phase-node-box" id="node-rect-taxi_in"/>
+                        <text x="1147" y="415" class="phase-node-text" style="font-size: 11px;">Taxi In</text>
+                    </g>
+                    <g class="phase-node-group" onclick="openPhaseModal('ramp_in')">
+                        <rect x="1195" y="400" width="80" height="30" class="phase-node-box" id="node-rect-ramp_in"/>
+                        <text x="1235" y="415" class="phase-node-text" style="font-size: 11px;">Ramp In</text>
+                    </g>
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    <!-- View 3: Departure Airport Comprehensive View (Preflight ~ Climb) -->
+    <div id="depView" class="view-section">
+        <div class="action-bar">
+            <h2 style="font-size: 1.1rem; color: var(--text-main);">🛫 출발공항 종합 디브리프 모음 (Preflight ~ Climb)</h2>
+            <button class="btn btn-primary" onclick="switchView('debrief')">단계별 입력 폼으로 이동</button>
+        </div>
+        <div class="airport-view-wrapper">
+            <div class="airport-filter-bar">
+                <label style="font-weight: 700; color: var(--accent-cyan);">출발 공항 선택 (Select Departure DEP):</label>
+                <select id="depSelect" class="airport-select" onchange="renderDepartureSummary()"></select>
+            </div>
+            <div class="airport-summary-container" id="depSummaryContainer">
+                <!-- Injected dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- View 4: Arrival Airport Comprehensive View (Descent ~ Ramp In) -->
+    <div id="arrView" class="view-section">
+        <div class="action-bar">
+            <h2 style="font-size: 1.1rem; color: var(--text-main);">🛬 도착공항 종합 디브리프 모음 (Descent ~ Ramp In)</h2>
+            <button class="btn btn-primary" onclick="switchView('debrief')">단계별 입력 폼으로 이동</button>
+        </div>
+        <div class="airport-view-wrapper">
+            <div class="airport-filter-bar">
+                <label style="font-weight: 700; color: var(--accent-cyan);">도착 공항 선택 (Select Destination ARR):</label>
+                <select id="arrSelect" class="airport-select" onchange="renderArrivalSummary()"></select>
+            </div>
+            <div class="airport-summary-container" id="arrSummaryContainer">
+                <!-- Injected dynamically -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Popup for Phase Review / Thumbnail Details -->
+<div class="modal-overlay" id="phaseModal" onclick="if(event.target === this) closePhaseModal();">
+    <div class="modal-card">
+        <button class="modal-close" onclick="closePhaseModal()">&times;</button>
+        <div class="modal-title" id="modalTitle">모든 비행의 후기 모음</div>
+        <div class="modal-body" id="modalBody">
+            <!-- Content injected dynamically -->
+        </div>
+        <div style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid var(--border-color); padding-top: 15px;">
+            <button class="btn btn-primary" onclick="jumpToCurrentFlightDebrief()">현재 비행 편집하기</button>
+            <button class="btn btn-secondary" onclick="closePhaseModal()">닫기</button>
+        </div>
+    </div>
+</div>
+
+<!-- Custom Calendar Modal Picker -->
+<div class="calendar-modal-overlay" id="calendarModal" onclick="if(event.target === this) closeCalendarModal();">
+    <div class="calendar-card">
+        <div class="cal-header">
+            <button onclick="changeMonth(-1)">&#9664;</button>
+            <span id="calMonthTitle">2026년 6월</span>
+            <button onclick="changeMonth(1)">&#9654;</button>
+        </div>
+        <div class="cal-weekdays">
+            <div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div>
+        </div>
+        <div class="cal-days" id="calDaysGrid"></div>
+        <div style="margin-top: 15px; display: flex; justify-content: flex-end;">
+            <button class="btn btn-secondary" style="padding: 6px 14px; font-size: 0.8rem;" onclick="closeCalendarModal()">닫기</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const phases = [
+        { id: 'non_normal', name: 'Non-Normal', group: 'dep' },
+        { id: 'preflight', name: 'Preflight', group: 'dep' },
+        { id: 'taxi_out', name: 'Taxi Out', group: 'dep' },
+        { id: 'takeoff', name: 'Takeoff', group: 'dep' },
+        { id: 'climb', name: 'Climb', group: 'dep' },
+        { id: 'cruise', name: 'Cruise', group: 'cruise' },
+        { id: 'descent', name: 'Descent', group: 'arr' },
+        { id: 'approach', name: 'Approach', group: 'arr' },
+        { id: 'landing', name: 'Landing', group: 'arr' },
+        { id: 'taxi_in', name: 'Taxi In', group: 'arr' },
+        { id: 'ramp_in', name: 'Ramp In', group: 'arr' }
+    ];
+
+    let currentPhaseIndex = 0;
+    let activeModalPhaseId = null;
+
+    let allFlights = JSON.parse(localStorage.getItem('flight_multilog_all_v10') || '{}');
+    let activeFlightId = localStorage.getItem('flight_multilog_active_id_v10') || null;
+
+    // Calendar state
+    let calYear = new Date().getFullYear();
+    let calMonth = new Date().getMonth();
+
+    function init() {
+        if (Object.keys(allFlights).length === 0) {
+            createNewFlightQuiet("초기 비행 (Sample Flight)");
+        } else if (!activeFlightId || !allFlights[activeFlightId]) {
+            activeFlightId = Object.keys(allFlights)[0];
+        }
+        renderFlightSelector();
+        loadActiveFlightData();
+        renderPhaseList();
+        updateProfileStatusIndicators();
+        populateAirportDropdowns();
+    }
+
+    function createNewFlightQuiet(customName) {
+        const newId = 'flight_' + Date.now();
+        const todayStr = new Date().toISOString().split('T')[0];
+        allFlights[newId] = {
+            meta: {
+                title: customName || `비행 기록 (${todayStr})`,
+                date: todayStr,
+                ac: '', dep: '', arr: '', star: '', app: '', rwy: ''
+            },
+            debrief: {}
+        };
+        activeFlightId = newId;
+        saveAllToStorage();
+    }
+
+    function createNewFlight() {
+        collectCurrentEntriesData();
+        const flightName = prompt("새로운 비행의 제목이나 식별명을 입력하세요 (예: RKSI -> RKPC 훈련 비행):", `비행 기록 (${new Date().toLocaleDateString()})`);
+        if (!flightName) return;
+        createNewFlightQuiet(flightName);
+        renderFlightSelector();
+        loadActiveFlightData();
+        renderPhaseList();
+        updateProfileStatusIndicators();
+        populateAirportDropdowns();
+        alert('새로운 비행 기록이 생성되었습니다. 상단 비행 정보와 각 페이즈별 후기를 작성해 보세요!');
+    }
+
+    function deleteCurrentFlight() {
+        if (Object.keys(allFlights).length <= 1) {
+            alert('최소 1개의 비행 기록은 유지되어야 합니다.');
+            return;
+        }
+        if (confirm('현재 선택된 비행 기록을 삭제하시겠습니까? 삭제된 데이터는 복구할 수 없습니다.')) {
+            delete allFlights[activeFlightId];
+            activeFlightId = Object.keys(allFlights)[0];
+            saveAllToStorage();
+            renderFlightSelector();
+            loadActiveFlightData();
+            renderPhaseList();
+            updateProfileStatusIndicators();
+            populateAirportDropdowns();
+        }
+    }
+
+    function switchActiveFlight(flightId) {
+        collectCurrentEntriesData();
+        activeFlightId = flightId;
+        localStorage.setItem('flight_multilog_active_id_v10', activeFlightId);
+        loadActiveFlightData();
+        renderPhaseList();
+        updateProfileStatusIndicators();
+    }
+
+    function renderFlightSelector() {
+        const selector = document.getElementById('flightSelector');
+        selector.innerHTML = Object.keys(allFlights).map(id => {
+            const f = allFlights[id];
+            const title = f.meta.title || f.meta.date || '무제 비행';
+            const route = (f.meta.dep || 'DEP') + '➔' + (f.meta.arr || 'ARR');
+            const selected = id === activeFlightId ? 'selected' : '';
+            return `<option value="${id}" ${selected}>[${f.meta.date || '날짜미상'}] ${title} (${route}, 기번:${f.meta.ac || '미입력'})</option>`;
+        }).join('');
+    }
+
+    function loadActiveFlightData() {
+        const f = allFlights[activeFlightId];
+        document.getElementById('meta_date').value = f.meta.date || '';
+        document.getElementById('meta_pilot').value = f.meta.pilot || '';
+        document.getElementById('meta_ac').value = f.meta.ac || '';
+        document.getElementById('meta_dep').value = f.meta.dep || '';
+        document.getElementById('meta_arr').value = f.meta.arr || '';
+        document.getElementById('meta_star').value = f.meta.star || '';
+        document.getElementById('meta_app').value = f.meta.app || '';
+        document.getElementById('meta_rwy').value = f.meta.rwy || '';
+        loadPhaseData(currentPhaseIndex);
+    }
+
+    function saveCurrentFlightMeta() {
+        const f = allFlights[activeFlightId];
+        f.meta.date = document.getElementById('meta_date').value;
+        f.meta.pilot = document.getElementById('meta_pilot').value;
+        f.meta.ac = document.getElementById('meta_ac').value;
+        f.meta.dep = document.getElementById('meta_dep').value;
+        f.meta.arr = document.getElementById('meta_arr').value;
+        f.meta.star = document.getElementById('meta_star').value;
+        f.meta.app = document.getElementById('meta_app').value;
+        f.meta.rwy = document.getElementById('meta_rwy').value;
+        f.meta.title = `${f.meta.dep || 'DEP'} ➔ ${f.meta.arr || 'ARR'} (${f.meta.date || '날짜미상'})`;
+        saveAllToStorage();
+        renderFlightSelector();
+        populateAirportDropdowns();
+    }
+
+    function saveAllToStorage() {
+        localStorage.setItem('flight_multilog_all_v10', JSON.stringify(allFlights));
+        localStorage.setItem('flight_multilog_active_id_v10', activeFlightId);
+    }
+
+    function renderPhaseList() {
+        const f = allFlights[activeFlightId];
+        const container = document.getElementById('phaseList');
+        container.innerHTML = phases.map((p, idx) => {
+            const entries = f.debrief && f.debrief[p.id];
+            const hasData = entries && entries.length > 0 && entries.some(e => e.situation || e.my_action || e.correct_action);
+            const activeClass = idx === currentPhaseIndex ? 'active' : '';
+            const dataClass = hasData ? 'has-data' : '';
+            return `
+                <div class="phase-item ${activeClass} ${dataClass}" onclick="selectPhase(${idx})">
+                    <span>${idx + 1}. ${p.name}</span>
+                    <span class="phase-badge">${hasData ? '작성완료' : '대기'}</span>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function selectPhase(idx) {
+        collectCurrentEntriesData();
+        currentPhaseIndex = idx;
+        renderPhaseList();
+        loadPhaseData(idx);
+    }
+
+    function loadPhaseData(idx) {
+        const p = phases[idx];
+        document.getElementById('currentPhaseTitle').textContent = `${idx + 1}. ${p.name} Debrief`;
+        const f = allFlights[activeFlightId];
+        if (!f.debrief) f.debrief = {};
+        
+        let entries = f.debrief[p.id];
+        if (!entries || !Array.isArray(entries) || entries.length === 0) {
+            entries = [{ situation: '', my_action: '', correct_action: '' }];
+            f.debrief[p.id] = entries;
+        }
+
+        renderEntriesDOM(entries);
+        updatePhaseStatusBadge(entries);
+    }
+
+    function renderEntriesDOM(entries) {
+        const container = document.getElementById('entriesContainer');
+        container.innerHTML = entries.map((ent, eIdx) => `
+            <div class="entry-card" id="entry-card-${eIdx}">
+                <div class="entry-card-header">
+                    <span>기록 항목 #${eIdx + 1}</span>
+                    ${entries.length > 1 ? `<button type="button" class="btn btn-danger" style="padding: 4px 8px; font-size: 0.75rem;" onclick="removeEntry(${eIdx})">삭제</button>` : ''}
+                </div>
+                <div class="form-group">
+                    <label>1. 상황 (Situation)</label>
+                    <textarea class="ent-situation" placeholder="예: 측풍 불어오는 중 강풍 윈드시어 조우">${escapeHtml(ent.situation || '')}</textarea>
+                </div>
+                <div class="form-group">
+                    <label>2. 내가 한 조작 (My Action)</label>
+                    <textarea class="ent-my-action" placeholder="예: 요크를 과도하게 당기고 스로틀 급조작">${escapeHtml(ent.my_action || '')}</textarea>
+                </div>
+                <div class="form-group">
+                    <label>3. 옳은 조작 (Correct Action / SOP)</label>
+                    <textarea class="ent-correct-action" placeholder="예: 침착하게 러더로 측풍 수정 후 스무스하게 런웨이 중심 유지">${escapeHtml(ent.correct_action || '')}</textarea>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function addNewEntry() {
+        collectCurrentEntriesData();
+        const f = allFlights[activeFlightId];
+        const p = phases[currentPhaseIndex];
+        if (!f.debrief[p.id]) f.debrief[p.id] = [];
+        f.debrief[p.id].push({ situation: '', my_action: '', correct_action: '' });
+        loadPhaseData(currentPhaseIndex);
+    }
+
+    function removeEntry(eIdx) {
+        const f = allFlights[activeFlightId];
+        const p = phases[currentPhaseIndex];
+        if (f.debrief[p.id] && f.debrief[p.id].length > 1) {
+            f.debrief[p.id].splice(eIdx, 1);
+            loadPhaseData(currentPhaseIndex);
+            saveAllToStorage();
+            updateProfileStatusIndicators();
+        }
+    }
+
+    function collectCurrentEntriesData() {
+        const f = allFlights[activeFlightId];
+        if (!f.debrief) f.debrief = {};
+        const p = phases[currentPhaseIndex];
+        
+        const cards = document.querySelectorAll('.entry-card');
+        const entries = [];
+        cards.forEach(card => {
+            const situation = card.querySelector('.ent-situation').value;
+            const my_action = card.querySelector('.ent-my-action').value;
+            const correct_action = card.querySelector('.ent-correct-action').value;
+            if (situation.trim() || my_action.trim() || correct_action.trim()) {
+                entries.push({ situation, my_action, correct_action });
+            }
+        });
+
+        if (entries.length > 0) {
+            f.debrief[p.id] = entries;
+        } else {
+            f.debrief[p.id] = [{ situation: '', my_action: '', correct_action: '' }];
+        }
+        saveAllToStorage();
+        updateProfileStatusIndicators();
+        updatePhaseStatusBadge(f.debrief[p.id]);
+    }
+
+    function updatePhaseStatusBadge(entries) {
+        const hasData = entries.length > 0 && entries.some(e => e.situation || e.my_action || e.correct_action);
+        const statusEl = document.getElementById('currentPhaseStatus');
+        statusEl.textContent = hasData ? '작성 완료' : '작성 대기';
+        statusEl.style.background = hasData ? 'rgba(16, 185, 129, 0.2)' : 'var(--border-color)';
+        statusEl.style.color = hasData ? 'var(--accent-emerald)' : 'var(--text-muted)';
+    }
+
+    function saveAndNextPhase() {
+        collectCurrentEntriesData();
+        showSaveStatus();
+        if (currentPhaseIndex < phases.length - 1) {
+            selectPhase(currentPhaseIndex + 1);
+        } else {
+            alert('현재 비행의 마지막 페이즈까지 저장되었습니다! 상단 메뉴에서 출발/도착 공항별 종합 후기 또는 비행 프로파일 맵을 확인하실 수 있습니다.');
+        }
+    }
+
+    function prevPhase() {
+        collectCurrentEntriesData();
+        if (currentPhaseIndex > 0) {
+            selectPhase(currentPhaseIndex - 1);
+        }
+    }
+
+    function showSaveStatus() {
+        const st = document.getElementById('saveStatus');
+        st.textContent = '💾 저장되었습니다!';
+        setTimeout(() => { st.textContent = '💾 자동 저장됨'; }, 2000);
+        renderPhaseList();
+        updateProfileStatusIndicators();
+    }
+
+    function switchView(viewName) {
+        collectCurrentEntriesData();
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.view-section').forEach(sec => sec.classList.remove('active'));
+
+        if (viewName === 'debrief') {
+            document.querySelectorAll('.tab-btn')[0].classList.add('active');
+            document.getElementById('debriefView').classList.add('active');
+            renderPhaseList();
+        } else if (viewName === 'profile') {
+            document.querySelectorAll('.tab-btn')[1].classList.add('active');
+            document.getElementById('profileView').classList.add('active');
+            updateProfileStatusIndicators();
+        } else if (viewName === 'depView') {
+            document.querySelectorAll('.tab-btn')[2].classList.add('active');
+            document.getElementById('depView').classList.add('active');
+            populateAirportDropdowns();
+            renderDepartureSummary();
+        } else if (viewName === 'arrView') {
+            document.querySelectorAll('.tab-btn')[3].classList.add('active');
+            document.getElementById('arrView').classList.add('active');
+            populateAirportDropdowns();
+            renderArrivalSummary();
+        }
+    }
+
+    function populateAirportDropdowns() {
+        const depSelect = document.getElementById('depSelect');
+        const curDep = depSelect.value;
+        let deps = new Set();
+        
+        const arrSelect = document.getElementById('arrSelect');
+        const curArr = arrSelect.value;
+        let arrs = new Set();
+
+        for (let fid in allFlights) {
+            const f = allFlights[fid];
+            const d = f.meta.dep;
+            const a = f.meta.arr;
+            if (d && d.trim() !== '') deps.add(d.trim().toUpperCase());
+            if (a && a.trim() !== '') arrs.add(a.trim().toUpperCase());
+        }
+
+        let depList = Array.from(deps);
+        if (depList.length === 0) {
+            depSelect.innerHTML = '<option value="">입력된 출발 공항이 없습니다</option>';
+            document.getElementById('depSummaryContainer').innerHTML = '<div class="modal-empty">상단 비행 정보에서 출발 공항(DEP)을 입력해주세요.</div>';
+        } else {
+            depSelect.innerHTML = depList.map(d => `<option value="${d}">${d}</option>`).join('');
+            if (depList.includes(curDep)) depSelect.value = curDep;
+        }
+
+        let arrList = Array.from(arrs);
+        if (arrList.length === 0) {
+            arrSelect.innerHTML = '<option value="">입력된 도착 공항이 없습니다</option>';
+            document.getElementById('arrSummaryContainer').innerHTML = '<div class="modal-empty">상단 비행 정보에서 도착 공항(ARR)을 입력해주세요.</div>';
+        } else {
+            arrSelect.innerHTML = arrList.map(a => `<option value="${a}">${a}</option>`).join('');
+            if (arrList.includes(curArr)) arrSelect.value = curArr;
+        }
+    }
+
+    function renderDepartureSummary() {
+        const select = document.getElementById('depSelect');
+        const targetDep = select.value;
+        const container = document.getElementById('depSummaryContainer');
+
+        if (!targetDep) {
+            container.innerHTML = '<div class="modal-empty">출발 공항을 선택해주세요.</div>';
+            return;
+        }
+
+        let html = '';
+        let count = 0;
+
+        for (let fid in allFlights) {
+            const f = allFlights[fid];
+            const dep = (f.meta.dep || '').trim().toUpperCase();
+            if (dep === targetDep) {
+                count++;
+                const isCurrent = fid === activeFlightId;
+                const borderHighlight = isCurrent ? 'border-color: var(--accent-cyan); box-shadow: 0 0 10px rgba(6,182,212,0.2);' : '';
+                
+                let phasesHtml = '';
+                phases.forEach(p => {
+                    if (p.group === 'dep') {
+                        const entries = f.debrief && f.debrief[p.id];
+                        const validEntries = entries ? entries.filter(e => e.situation || e.my_action || e.correct_action) : [];
+                        
+                        if (validEntries.length > 0) {
+                            const firstSit = validEntries[0].situation || validEntries[0].my_action || '내용 기록됨';
+                            phasesHtml += `
+                                <div class="airport-phase-thumb" onclick="openPhaseModalForFlight('${fid}', '${p.id}')">
+                                    <div class="airport-phase-name">
+                                        <span>${p.name}</span>
+                                        <span class="thumb-count-badge">${validEntries.length}건</span>
+                                    </div>
+                                    <div class="thumb-preview-text">💬 ${escapeHtml(firstSit)}</div>
+                                    <div style="font-size: 0.7rem; color: var(--accent-blue); margin-top: 6px; text-align: right;">클릭하여 상세 내용 보기 ➔</div>
+                                </div>
+                            `;
+                        }
+                    }
+                });
+
+                if (!phasesHtml) {
+                    phasesHtml = '<div style="color:var(--text-muted); font-size:0.85rem; grid-column:1/-1; font-style:italic;">이 비행의 출발 페이즈(Preflight ~ Climb)에 작성된 후기가 없습니다.</div>';
+                }
+
+                html += `
+                    <div class="airport-flight-block" style="${borderHighlight}">
+                        <div class="airport-flight-header">
+                            <div class="airport-flight-title">
+                                🛫 ${f.meta.dep || 'DEP'} ➔ ${f.meta.arr || 'ARR'} (${f.meta.date || '날짜미상'}) ${isCurrent ? '<span style="font-size:0.75rem; color:var(--accent-cyan);">(현재 선택중인 비행)</span>' : ''}
+                            </div>
+                            <div style="font-size: 0.85rem; color: var(--text-muted);">
+                                기번: <strong>${f.meta.ac || '-'}</strong> | RWY: <strong>${f.meta.rwy || '-'}</strong>
+                            </div>
+                        </div>
+                        <div class="airport-phases-grid">
+                            ${phasesHtml}
+                        </div>
+                        <div style="margin-top: 15px; display: flex; justify-content: flex-end;">
+                            <button class="btn btn-primary" style="padding: 6px 14px; font-size: 0.8rem;" onclick="jumpToFlightAndDebrief('${fid}')">이 비행 편집하기</button>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        if (count === 0) {
+            container.innerHTML = `<div class="modal-empty">[${targetDep}] 공항에서 출발하는 비행 기록이 없습니다.</div>`;
+        } else {
+            container.innerHTML = html;
+        }
+    }
+
+    function renderArrivalSummary() {
+        const select = document.getElementById('arrSelect');
+        const targetArr = select.value;
+        const container = document.getElementById('arrSummaryContainer');
+
+        if (!targetArr) {
+            container.innerHTML = '<div class="modal-empty">도착 공항을 선택해주세요.</div>';
+            return;
+        }
+
+        let html = '';
+        let count = 0;
+
+        for (let fid in allFlights) {
+            const f = allFlights[fid];
+            const arr = (f.meta.arr || '').trim().toUpperCase();
+            if (arr === targetArr) {
+                count++;
+                const isCurrent = fid === activeFlightId;
+                const borderHighlight = isCurrent ? 'border-color: var(--accent-cyan); box-shadow: 0 0 10px rgba(6,182,212,0.2);' : '';
+                
+                let phasesHtml = '';
+                phases.forEach(p => {
+                    if (p.group === 'arr') {
+                        const entries = f.debrief && f.debrief[p.id];
+                        const validEntries = entries ? entries.filter(e => e.situation || e.my_action || e.correct_action) : [];
+                        
+                        if (validEntries.length > 0) {
+                            const firstSit = validEntries[0].situation || validEntries[0].my_action || '내용 기록됨';
+                            phasesHtml += `
+                                <div class="airport-phase-thumb" onclick="openPhaseModalForFlight('${fid}', '${p.id}')">
+                                    <div class="airport-phase-name">
+                                        <span>${p.name}</span>
+                                        <span class="thumb-count-badge">${validEntries.length}건</span>
+                                    </div>
+                                    <div class="thumb-preview-text">💬 ${escapeHtml(firstSit)}</div>
+                                    <div style="font-size: 0.7rem; color: var(--accent-blue); margin-top: 6px; text-align: right;">클릭하여 상세 내용 보기 ➔</div>
+                                </div>
+                            `;
+                        }
+                    }
+                });
+
+                if (!phasesHtml) {
+                    phasesHtml = '<div style="color:var(--text-muted); font-size:0.85rem; grid-column:1/-1; font-style:italic;">이 비행의 도착 페이즈(Descent ~ Ramp In)에 작성된 후기가 없습니다.</div>';
+                }
+
+                html += `
+                    <div class="airport-flight-block" style="${borderHighlight}">
+                        <div class="airport-flight-header">
+                            <div class="airport-flight-title">
+                                🛬 ${f.meta.dep || 'DEP'} ➔ ${f.meta.arr || 'ARR'} (${f.meta.date || '날짜미상'}) ${isCurrent ? '<span style="font-size:0.75rem; color:var(--accent-cyan);">(현재 선택중인 비행)</span>' : ''}
+                            </div>
+                            <div style="font-size: 0.85rem; color: var(--text-muted);">
+                                기번: <strong>${f.meta.ac || '-'}</strong> | STAR: <strong>${f.meta.star || '-'}</strong> | APP: <strong>${f.meta.app || '-'}</strong> | RWY: <strong>${f.meta.rwy || '-'}</strong>
+                            </div>
+                        </div>
+                        <div class="airport-phases-grid">
+                            ${phasesHtml}
+                        </div>
+                        <div style="margin-top: 15px; display: flex; justify-content: flex-end;">
+                            <button class="btn btn-primary" style="padding: 6px 14px; font-size: 0.8rem;" onclick="jumpToFlightAndDebrief('${fid}')">이 비행 편집하기</button>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        if (count === 0) {
+            container.innerHTML = `<div class="modal-empty">[${targetArr}] 공항으로 도착하는 비행 기록이 없습니다.</div>`;
+        } else {
+            container.innerHTML = html;
+        }
+    }
+
+    function jumpToFlightAndDebrief(flightId) {
+        switchActiveFlight(flightId);
+        switchView('debrief');
+    }
+
+    function updateProfileStatusIndicators() {
+        phases.forEach(p => {
+            let hasAny = false;
+            for (let fid in allFlights) {
+                const deb = allFlights[fid].debrief;
+                if (deb && deb[p.id]) {
+                    const valid = deb[p.id].filter(e => e.situation || e.my_action || e.correct_action);
+                    if (valid.length > 0) {
+                        hasAny = true;
+                        break;
+                    }
+                }
+            }
+            const statusText = document.getElementById(`node-status-${p.id}`);
+            const rectBox = document.getElementById(`node-rect-${p.id}`);
+            if (statusText) {
+                statusText.textContent = hasAny ? '기록 있음' : '대기';
+                statusText.setAttribute('fill', hasAny ? '#10b981' : '#9ca3af');
+            }
+            if (rectBox) {
+                rectBox.style.stroke = hasAny ? '#10b981' : '#06b6d4';
+            }
+        });
+    }
+
+    function openPhaseModal(phaseId) {
+        collectCurrentEntriesData();
+        activeModalPhaseId = phaseId;
+        const phaseObj = phases.find(p => p.id === phaseId);
+        
+        document.getElementById('modalTitle').textContent = `📚 모든 비행의 [${phaseObj.name}] 후기 모음`;
+        
+        const bodyEl = document.getElementById('modalBody');
+        let htmlContent = '';
+        let totalRecords = 0;
+
+        for (let fid in allFlights) {
+            const f = allFlights[fid];
+            const entries = f.debrief && f.debrief[phaseId];
+            const validEntries = entries ? entries.filter(e => e.situation || e.my_action || e.correct_action) : [];
+            
+            if (validEntries.length > 0) {
+                totalRecords++;
+                const isCurrent = fid === activeFlightId;
+                const borderHighlight = isCurrent ? 'border-color: var(--accent-cyan); box-shadow: 0 0 10px rgba(6,182,212,0.2);' : '';
+                
+                let entriesHtml = '';
+                validEntries.forEach((ent, eIdx) => {
+                    entriesHtml += `
+                        <div class="flight-record-card" style="margin-bottom: 10px; background:var(--card-bg);">
+                            <div style="font-size:0.8rem; font-weight:bold; color:var(--accent-cyan); margin-bottom:6px; border-bottom:1px dashed var(--border-color); padding-bottom:4px;">항목 #${eIdx + 1}</div>
+                            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px;">
+                                <div class="modal-field-group" style="margin-top:0;">
+                                    <div class="modal-field-label">1. 상황 (Situation)</div>
+                                    <div class="modal-field-val">${escapeHtml(ent.situation || '입력 없음')}</div>
+                                </div>
+                                <div class="modal-field-group" style="margin-top:0;">
+                                    <div class="modal-field-label">2. 내가 한 조작 (My Action)</div>
+                                    <div class="modal-field-val">${escapeHtml(ent.my_action || '입력 없음')}</div>
+                                </div>
+                                <div class="modal-field-group" style="margin-top:0;">
+                                    <div class="modal-field-label">3. 옳은 조작 (Correct Action)</div>
+                                    <div class="modal-field-val">${escapeHtml(ent.correct_action || '입력 없음')}</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                htmlContent += `
+                    <div class="flight-record-card" style="${borderHighlight}">
+                        <div class="flight-record-header" onclick="toggleRecordDetail(this)">
+                            <span>📅 날짜: <strong>${f.meta.date || '미지정'}</strong> | 기장: <strong>${f.meta.pilot || '미입력'}</strong> | 기번: <strong>${f.meta.ac || '미입력'}</strong> | 구간: <strong>${f.meta.dep || 'DEP'} ➔ ${f.meta.arr || 'ARR'}</strong> 🔍 [클릭하여 상세 내용 보기]</span>
+                            <span>STAR:${f.meta.star || '-'} / APP:${f.meta.app || '-'} / RWY:${f.meta.rwy || '-'} ${isCurrent ? '<span style="color:var(--accent-cyan); font-weight:bold;">(현재 선택중인 비행)</span>' : ''}</span>
+                        </div>
+                        <div class="record-detail-content" style="display: none; margin-top: 12px;">
+                            ${entriesHtml}
+                            <div style="margin-top: 10px; display: flex; justify-content: flex-end;">
+                                <button class="btn btn-primary" style="padding: 6px 12px; font-size: 0.8rem;" onclick="jumpToFlightAndPhase('${fid}', '${phaseId}')">이 비행 및 페이즈 편집하기</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        if (totalRecords === 0) {
+            bodyEl.innerHTML = `<div class="modal-empty">아직 작성된 [${phaseObj.name}] 페이즈 후기가 없습니다. 단계별 입력 폼에서 후기를 작성해 보세요!</div>`;
+        } else {
+            bodyEl.innerHTML = htmlContent;
+        }
+
+        document.getElementById('phaseModal').classList.add('active');
+    }
+
+    function openPhaseModalForFlight(flightId, phaseId) {
+        collectCurrentEntriesData();
+        activeModalPhaseId = phaseId;
+        const phaseObj = phases.find(p => p.id === phaseId);
+        const f = allFlights[flightId];
+        
+        document.getElementById('modalTitle').textContent = `📚 [${f.meta.dep || 'DEP'}➔${f.meta.arr || 'ARR'}] ${phaseObj.name} 상세 후기`;
+        
+        const bodyEl = document.getElementById('modalBody');
+        const entries = f.debrief && f.debrief[phaseId];
+        const validEntries = entries ? entries.filter(e => e.situation || e.my_action || e.correct_action) : [];
+        
+        const isCurrent = flightId === activeFlightId;
+        const borderHighlight = isCurrent ? 'border-color: var(--accent-cyan); box-shadow: 0 0 10px rgba(6,182,212,0.2);' : '';
+        
+        let entriesHtml = '';
+        validEntries.forEach((ent, eIdx) => {
+            entriesHtml += `
+                <div class="flight-record-card" style="margin-bottom: 10px; background:var(--card-bg);">
+                    <div style="font-size:0.8rem; font-weight:bold; color:var(--accent-cyan); margin-bottom:6px; border-bottom:1px dashed var(--border-color); padding-bottom:4px;">항목 #${eIdx + 1}</div>
+                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px;">
+                        <div class="modal-field-group" style="margin-top:0;">
+                            <div class="modal-field-label">1. 상황 (Situation)</div>
+                            <div class="modal-field-val">${escapeHtml(ent.situation || '입력 없음')}</div>
+                        </div>
+                        <div class="modal-field-group" style="margin-top:0;">
+                            <div class="modal-field-label">2. 내가 한 조작 (My Action)</div>
+                            <div class="modal-field-val">${escapeHtml(ent.my_action || '입력 없음')}</div>
+                        </div>
+                        <div class="modal-field-group" style="margin-top:0;">
+                            <div class="modal-field-label">3. 옳은 조작 (Correct Action)</div>
+                            <div class="modal-field-val">${escapeHtml(ent.correct_action || '입력 없음')}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        bodyEl.innerHTML = `
+            <div class="flight-record-card" style="${borderHighlight}">
+                <div class="flight-record-header" onclick="toggleRecordDetail(this)" style="cursor:default;">
+                    <span>📅 날짜: <strong>${f.meta.date || '미지정'}</strong> | 기장: <strong>${f.meta.pilot || '미입력'}</strong> | 기번: <strong>${f.meta.ac || '미입력'}</strong> | 구간: <strong>${f.meta.dep || 'DEP'} ➔ ${f.meta.arr || 'ARR'}</strong></span>
+                    <span>STAR:${f.meta.star || '-'} / APP:${f.meta.app || '-'} / RWY:${f.meta.rwy || '-'} ${isCurrent ? '<span style="color:var(--accent-cyan); font-weight:bold;">(현재 선택중인 비행)</span>' : ''}</span>
+                </div>
+                <div class="record-detail-content" style="margin-top: 12px;">
+                    ${entriesHtml}
+                    <div style="margin-top: 10px; display: flex; justify-content: flex-end;">
+                        <button class="btn btn-primary" style="padding: 6px 12px; font-size: 0.8rem;" onclick="jumpToFlightAndPhase('${flightId}', '${phaseId}')">이 비행 및 페이즈 편집하기</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('phaseModal').classList.add('active');
+    }
+
+    function toggleRecordDetail(headerEl) {
+        const detailContent = headerEl.nextElementSibling;
+        if (detailContent && detailContent.classList.contains('record-detail-content')) {
+            if (detailContent.style.display === 'none') {
+                detailContent.style.display = 'block';
+            } else {
+                detailContent.style.display = 'none';
+            }
+        }
+    }
+
+    function closePhaseModal() {
+        document.getElementById('phaseModal').classList.remove('active');
+        activeModalPhaseId = null;
+    }
+
+    function jumpToFlightAndPhase(flightId, phaseId) {
+        switchActiveFlight(flightId);
+        const idx = phases.findIndex(p => p.id === phaseId);
+        if (idx !== -1) {
+            currentPhaseIndex = idx;
+        }
+        closePhaseModal();
+        switchView('debrief');
+    }
+
+    function jumpToCurrentFlightDebrief() {
+        if (!activeModalPhaseId) return;
+        const idx = phases.findIndex(p => p.id === activeModalPhaseId);
+        if (idx !== -1) {
+            currentPhaseIndex = idx;
+        }
+        closePhaseModal();
+        switchView('debrief');
+    }
+
+    /* Custom Calendar Picker Logic */
+    function openCalendarModal() {
+        const currentDateVal = document.getElementById('meta_date').value;
+        if (currentDateVal) {
+            const parts = currentDateVal.split('-');
+            calYear = parseInt(parts[0]);
+            calMonth = parseInt(parts[1]) - 1;
+        } else {
+            const now = new Date();
+            calYear = now.getFullYear();
+            calMonth = now.getMonth();
+        }
+        renderCalendarGrid();
+        document.getElementById('calendarModal').classList.add('active');
+    }
+
+    function closeCalendarModal() {
+        document.getElementById('calendarModal').classList.remove('active');
+    }
+
+    function changeMonth(direction) {
+        calMonth += direction;
+        if (calMonth > 11) {
+            calMonth = 0;
+            calYear++;
+        } else if (calMonth < 0) {
+            calMonth = 11;
+            calYear--;
+        }
+        renderCalendarGrid();
+    }
+
+    function renderCalendarGrid() {
+        const titleEl = document.getElementById('calMonthTitle');
+        titleEl.textContent = `${calYear}년 ${calMonth + 1}월`;
+
+        const gridEl = document.getElementById('calDaysGrid');
+        gridEl.innerHTML = '';
+
+        const firstDayIndex = new Date(calYear, calMonth, 1).getDay();
+        const totalDays = new Date(calYear, calMonth + 1, 0).getDate();
+
+        const currentDateVal = document.getElementById('meta_date').value;
+
+        for (let i = 0; i < firstDayIndex; i++) {
+            const emptyCell = document.createElement('div');
+            emptyCell.className = 'cal-day empty';
+            gridEl.appendChild(emptyCell);
+        }
+
+        for (let d = 1; d <= totalDays; d++) {
+            const dayCell = document.createElement('div');
+            dayCell.className = 'cal-day';
+            dayCell.textContent = d;
+
+            const mStr = String(calMonth + 1).padStart(2, '0');
+            const dStr = String(d).padStart(2, '0');
+            const dateStr = `${calYear}-${mStr}-${dStr}`;
+
+            if (dateStr === currentDateVal) {
+                dayCell.classList.add('selected');
+            }
+
+            const today = new Date();
+            if (calYear === today.getFullYear() && calMonth === today.getMonth() && d === today.getDate()) {
+                dayCell.classList.add('today');
+            }
+
+            dayCell.onclick = function() {
+                document.getElementById('meta_date').value = dateStr;
+                saveCurrentFlightMeta();
+                closeCalendarModal();
+            };
+
+            gridEl.appendChild(dayCell);
+        }
+    }
+
+    function escapeHtml(text) {
+        return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+
+    
+    function importData(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const imported = JSON.parse(e.target.result);
+                if (imported && typeof imported === 'object' && Object.keys(imported).length > 0) {
+                    if (confirm('백업 파일을 불러오면 현재 브라우저에 저장된 데이터가 파일의 내용으로 덮어씌워집니다. 계속하시겠습니까?')) {
+                        allFlights = imported;
+                        activeFlightId = Object.keys(allFlights)[0];
+                        saveAllToStorage();
+                        renderFlightSelector();
+                        loadActiveFlightData();
+                        renderPhaseList();
+                        updateProfileStatusIndicators();
+                        populateAirportDropdowns();
+                        alert('백업 파일이 성공적으로 불러와졌습니다!');
+                    }
+                } else {
+                    alert('올바른 백업 파일 형기가 아닙니다.');
+                }
+            } catch (err) {
+                alert('JSON 파일을 파싱하는 중 오류가 발생했습니다: ' + err.message);
+            }
+            event.target.value = ''; // Reset file input
+        };
+        reader.readAsText(file);
+    }
+
+    function exportData() {
+        collectCurrentEntriesData();
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(allFlights, null, 2));
+        const downloadAnchor = document.createElement('a');
+        downloadAnchor.setAttribute("href", dataStr);
+        downloadAnchor.setAttribute("download", "all_flights_debrief_logs.json");
+        document.body.appendChild(downloadAnchor);
+        downloadAnchor.click();
+        downloadAnchor.remove();
+    }
+
+    window.onload = init;
+</script>
+</body>
+</html>
